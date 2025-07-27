@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CardioSim</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* A key change: prevent the whole page from scrolling */
+        body {
+            overflow: hidden;
+        }
+
+        .sidebar-transition {
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .aspect-16-9 {
+            aspect-ratio: 16 / 9;
+        }
+        
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        
+        /* Custom scrollbar for independently scrolling sections */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #2d3748; /* bg-gray-700 */
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4a5568; /* bg-gray-600 */
+            border-radius: 3px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #718096; /* bg-gray-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen flex flex-col">
+    <header class="bg-gray-800 py-3 px-4 shadow-md w-full z-20">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <button id="sidebar-toggle" class="text-gray-300 hover:text-white focus:outline-none">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <h1 class="text-xl font-bold text-blue-400">CardioSim</h1>
+            </div>
+            
+            <div class="flex items-center space-x-6">
+               <div id="stats-container" class="hidden sm:flex items-center space-x-2">
+    <span id="stat-saved" class="text-red-400"><i class="fas fa-heart"></i> Saved: 0</span>
+    <span class="text-gray-400">|</span>
+    <span id="stat-died" class="text-gray-400"><i class="fas fa-skull-crossbones"></i> Died: 0</span>
+</div>
+                
+                <a href="homepage.html" class="text-gray-300 hover:text-blue-400 transition-colors" title="Home">
+                    <i class="fas fa-home text-xl"></i>
+                </a>
+                
+                <a href="courses.html" class="text-gray-300 hover:text-blue-400 transition-colors" title="Courses">
+                    <i class="fas fa-graduation-cap text-xl"></i>
+                </a>
+                
+                <button id="settings-btn" class="text-gray-300 hover:text-blue-400 transition-colors" title="Settings">
+                    <i class="fas fa-cog text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+   <div class="flex flex-1 relative overflow-hidden">
+        <aside id="sidebar" class="sidebar-transition bg-gray-800 w-64 h-full custom-scrollbar overflow-y-auto z-20 absolute md:relative inset-y-0 left-0 transform -translate-x-full md:translate-x-0">
+            <div class="p-4">
+                <button id="admit-patient-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md flex items-center justify-center space-x-2 transition-colors">
+                    <i class="fas fa-plus"></i>
+                    <span>Admit New Patient</span>
+                </button>
+                
+                <div class="mt-6">
+                    <h3 class="text-gray-400 uppercase text-xs font-semibold tracking-wider mb-2">Active Patients</h3>
+                    <ul id="patient-list-container">
+                        <li class="patient-item bg-gray-700 hover:bg-gray-600 rounded-md p-3 mb-2 cursor-pointer transition-colors">
+                            <div class="flex justify-between items-center">
+                                <span class="font-medium">John Doe</span>
+                                <span class="text-xs bg-red-500 text-white px-2 py-1 rounded-full">ER Admission</span>
+                            </div>
+                            <div class="text-xs text-gray-400 mt-1">Age: 45, BP: 140/90</div>
+                        </li>
+                        <li class="patient-item bg-gray-700 hover:bg-gray-600 rounded-md p-3 mb-2 cursor-pointer transition-colors">
+                            <div class="flex justify-between items-center">
+                                <span class="font-medium">Jane Smith</span>
+                                <span class="text-xs bg-blue-500 text-white px-2 py-1 rounded-full">Post-Op</span>
+                            </div>
+                            <div class="text-xs text-gray-400 mt-1">Age: 32, HR: 88</div>
+                        </li>
+                        <li class="patient-item bg-gray-700 hover:bg-gray-600 rounded-md p-3 mb-2 cursor-pointer transition-colors">
+                            <div class="flex justify-between items-center">
+                                <span class="font-medium">Robert Johnson</span>
+                                <span class="text-xs bg-yellow-500 text-white px-2 py-1 rounded-full">Stable</span>
+                            </div>
+                            <div class="text-xs text-gray-400 mt-1">Age: 58, SPO2: 98%</div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+        
+        <main id="main-content" class="flex-1 custom-scrollbar overflow-y-auto pb-20 md:ml-64"> <div class="p-6">
+                <div class="max-w-5xl mx-auto">
+                    <div id="image-container" class="aspect-16-9 bg-gray-700 rounded-lg border border-gray-600 flex items-center justify-center mb-6">
+                        <div class="text-center p-4">
+                            <i class="fas fa-image text-4xl text-gray-500 mb-2"></i>
+                            <p class="text-gray-400">Scenario Image will be displayed here.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                           <div id="vitals-monitor" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 border-b border-gray-700 pb-4 text-center md:text-left">
+    <div>
+        <p class="text-sm text-gray-400">Heart Rate</p>
+        <p id="vital-hr" class="text-xl font-bold text-red-400">--</p>
+    </div>
+    <div>
+        <p class="text-sm text-gray-400">Blood Pressure</p>
+        <p id="vital-bp" class="text-xl font-bold text-blue-300">--/--</p>
+    </div>
+    <div>
+        <p class="text-sm text-gray-400">O₂ Saturation</p>
+        <p id="vital-o2" class="text-xl font-bold text-green-400">--%</p>
+    </div>
+    <div>
+        <p class="text-sm text-gray-400">Consciousness</p>
+        <p id="vital-con" class="text-xl font-bold">--</p>
+    </div>
+</div>
+                        <div id="scenario-text" class="mb-6">
+                            <p class="text-gray-300">Patient scenario will appear here...</p>
+                            <p class="text-gray-400 italic mt-2">Example: "A 45-year-old male presents to the ER with chest pain radiating to his left arm. He appears diaphoretic and reports nausea. His vitals are BP 140/90, HR 110, RR 22, SpO2 96% on room air."</p>
+                     
+                        </div>
+                        
+                        <div id="options-container" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <button class="option-btn bg-gray-700 hover:bg-blue-600 text-white py-3 px-4 rounded-md transition-colors text-left">
+                                <span class="font-medium">Option A</span>
+                                <p class="text-xs text-gray-300 mt-1">Administer aspirin 325mg PO</p>
+                            </button>
+                            <button class="option-btn bg-gray-700 hover:bg-blue-600 text-white py-3 px-4 rounded-md transition-colors text-left">
+                                <span class="font-medium">Option B</span>
+                                <p class="text-xs text-gray-300 mt-1">Order stat ECG and troponin</p>
+                            </button>
+                            <button class="option-btn bg-gray-700 hover:bg-blue-600 text-white py-3 px-4 rounded-md transition-colors text-left">
+                                <span class="font-medium">Option C</span>
+                                <p class="text-xs text-gray-300 mt-1">Start IV fluids and monitor</p>
+                            </button>
+                        </div>
+                         <div id="timer-container" class="hidden text-right text-blue-400 mt-4">
+        <p class="text-sm">Waiting for results...</p>
+        <p id="timer-display" class="font-mono text-lg"></p>
+    </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <footer id="footer" class="bg-gray-800 border-t border-gray-700 py-3 px-6 fixed bottom-0 right-0 left-0 md:ml-64 z-10 transition-all duration-300">
+        <div class="flex">
+            <input id="custom-input" type="text" placeholder="Type your custom action here..." 
+                   class="flex-1 bg-gray-700 text-white rounded-l-md py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button id="submit-button" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-r-md transition-colors">
+                Submit
+            </button>
+        </div>
+    </footer>
+  
+    <div id="settings-modal" class="fixed inset-0 z-50 hidden items-center justify-center modal-overlay">
+        <div class="bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 border border-gray-700">
+            <div class="flex justify-between items-center border-b border-gray-700 p-4">
+                <h2 class="text-xl font-semibold">Settings</h2>
+                <button id="close-settings" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-6">
+                <div>
+                    <h3 class="text-lg font-medium mb-3">Difficulty Level</h3>
+                    <div class="space-y-2">
+                        <label class="flex items-center space-x-3">
+                            <input type="radio" name="difficulty" value="basic" class="form-radio text-blue-500" checked>
+                            <span>Basic</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="radio" name="difficulty" value="intermediate" class="form-radio text-blue-500">
+                            <span>Intermediate</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="radio" name="difficulty" value="advanced" class="form-radio text-blue-500">
+                            <span>Advanced</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-medium mb-3">Feedback Verbosity</h3>
+                    <div class="space-y-2">
+                        <label class="flex items-center space-x-3">
+                            <input type="radio" name="feedback" value="concise" class="form-radio text-blue-500" checked>
+                            <span>Concise</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="radio" name="feedback" value="detailed" class="form-radio text-blue-500">
+                            <span>Detailed</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-700 p-4 flex justify-end">
+                <button id="save-settings" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-md transition-colors">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+
+ <script>
+    // =================================================================
+    // CONFIGURATION & STATE MANAGEMENT (FOR GOOGLE GEMINI API)
+    // =================================================================
+    const API_KEY = 'AIzaSyDe4p09ZePwl-p_vCkxuQ4yaIDhA-rIkBQ'; // PASTE YOUR SECRET GEMINI KEY HERE
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
+    
+    let activePatientId = null;
+    let patients = {};
+    let stats = { saved: 0, died: 0 };
+    let countdownInterval = null;
+
+    const MASTER_PROMPT = `
+    **ROLE & GOAL:**
+    You are Simu-MD, an expert AI medical simulation engine. Your ONLY function is to generate JSON data for the CardioSim application. You must strictly adhere to the provided JSON structure.
+    **RESPONSE FORMAT (CRITICAL & ABSOLUTE):**
+    Your entire response MUST be a single, raw JSON object without ANY other text. The response must begin with '{' and end with '}'. This is the most important rule.
+    **MANDATORY JSON STRUCTURE & EXAMPLE:**
+    { "scenario_text": "A description of the situation.", "patient_vitals": { "heart_rate": "Value", "blood_pressure": "Value", "oxygen_saturation": "Value", "consciousness": "Value" }, "image_prompt": "A text description for an image AI.", "options": [ { "choice": "A", "text": "Actionable choice A." }, { "choice": "B", "text": "Actionable choice B." } ], "allow_custom_input": true, "feedback_text": "Analysis of the player's previous action.", "wait_time_minutes": 0, "status": "ongoing" }
+    **GAMEPLAY RULES:**
+    1. Time Delays: For actions that require waiting, set 'wait_time_minutes' to a value greater than 0.
+    2. Dynamic Patients: Patient emotional state and compliance can change based on the player's actions.
+    3. Open-Ended Challenges: Sometimes, return an empty 'options' array.
+    4. Outcomes: When a scenario ends, set 'status' to "stabilized" or "deceased".
+    **FINAL INSTRUCTION:**
+    Generate the next step of the simulation inside a single, valid JSON object and nothing else.
+    `;
+
+    // --- DOM Elements ---
+    const admitPatientBtn = document.getElementById('admit-patient-btn');
+    const scenarioTextElement = document.getElementById('scenario-text');
+    const optionsContainer = document.getElementById('options-container');
+    const imageContainer = document.getElementById('image-container');
+    const customInputField = document.getElementById('custom-input');
+    const submitButton = document.getElementById('submit-button');
+    const patientListContainer = document.getElementById('patient-list-container');
+    const savedStatElement = document.getElementById('stat-saved');
+    const diedStatElement = document.getElementById('stat-died');
+    const timerContainer = document.getElementById('timer-container');
+    const timerDisplay = document.getElementById('timer-display');
+
+    // =================================================================
+    // TIMER FUNCTIONS
+    // =================================================================
+    
+    // DELETE your old startTimer and handleWaitTimer functions, then ADD these:
+function updateAllTimers() {
+    let hasActiveTimers = false;
+    Object.keys(patients).forEach(patientId => {
+        const patient = patients[patientId];
+        if (patient.isWaiting) {
+            hasActiveTimers = true;
+            const timeLeftMs = patient.waitTimeEnd - Date.now();
+            
+            if (timeLeftMs > 0) {
+                const timeLeftSec = Math.round(timeLeftMs / 1000);
+                const min = Math.floor(timeLeftSec / 60);
+                const sec = timeLeftSec % 60;
+                const timeString = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+                
+                const sidebarTimerEl = document.getElementById(`timer-${patientId}`);
+                if (sidebarTimerEl) sidebarTimerEl.textContent = ` | ⏳ ${timeString}`;
+                if (patientId === activePatientId) {
+                    timerDisplay.textContent = timeString;
+                }
+            } else {
+                // Timer finished
+                patient.isWaiting = false;
+                patient.resultsReady = true; 
+                
+                const sidebarTimerEl = document.getElementById(`timer-${patientId}`);
+                if(sidebarTimerEl) sidebarTimerEl.textContent = ' | ✅ Results Ready';
+                
+                showNotification(patient.name); // Send notification
+
+                if (patientId === activePatientId) {
+                    timerContainer.classList.add('hidden');
+                    sendActionToAI("The waiting period is over. What are the results?");
+                }
+            }
+        }
+    });
+
+    if (!hasActiveTimers && countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+}
+
+function handleWaitTimer(scenarioData) {
+    if (scenarioData.wait_time_minutes && scenarioData.wait_time_minutes > 0) {
+        const patient = patients[activePatientId];
+        patient.isWaiting = true;
+        patient.waitTimeEnd = Date.now() + (scenarioData.wait_time_minutes * 60 * 1000);
+        
+        timerContainer.classList.remove('hidden');
+        customInputField.disabled = true;
+        submitButton.disabled = true;
+        optionsContainer.innerHTML = '<p class="text-gray-400 col-span-full text-center">Actions unavailable while waiting for results.</p>';
+
+        updatePatientListUI();
+
+        if (!countdownInterval) {
+            countdownInterval = setInterval(updateAllTimers, 1000);
+        }
+    } else {
+        customInputField.disabled = false;
+        submitButton.disabled = false;
+    }
+}
+
+    // =================================================================
+    // CORE FUNCTIONS
+    // =================================================================
+    
+// ADD THESE TWO NEW FUNCTIONS
+function requestNotificationPermission() {
+    if (!("Notification" in window)) {
+        console.log("This browser does not support desktop notification");
+    } else if (Notification.permission !== "denied") {
+        Notification.requestPermission();
+    }
+}
+
+function showNotification(patientName) {
+    if (Notification.permission === "granted" && document.hidden) { // Only notify if tab is not active
+        new Notification("CardioSim Alert", {
+            body: `Attention: Results for patient ${patientName} are now available.`
+        });
+    }
+}
+
+    function updateUI(scenarioData) {
+        // This function does not need changes
+        if (!scenarioData) return;
+        if (scenarioData.patient_vitals) {
+            document.getElementById('vital-hr').innerText = scenarioData.patient_vitals.heart_rate || '--';
+            document.getElementById('vital-bp').innerText = scenarioData.patient_vitals.blood_pressure || '--/--';
+            document.getElementById('vital-o2').innerText = scenarioData.patient_vitals.oxygen_saturation || '--%';
+            document.getElementById('vital-con').innerText = scenarioData.patient_vitals.consciousness || '--';
+        }
+        scenarioTextElement.innerHTML = `<p>${scenarioData.scenario_text}</p><p class="text-sm text-blue-300 italic mt-4">${scenarioData.feedback_text}</p>`;
+        imageContainer.innerHTML = `<div class="text-center p-4"><i class="fas fa-image text-4xl text-gray-500 mb-2"></i><p class="text-gray-400 italic">${scenarioData.image_prompt}</p></div>`;
+        optionsContainer.innerHTML = '';
+        if (scenarioData.options && scenarioData.options.length > 0) {
+            scenarioData.options.forEach(option => {
+                const button = document.createElement('button');
+                button.className = 'option-btn bg-gray-700 hover:bg-blue-600 text-white py-3 px-4 rounded-md transition-colors text-left';
+                button.innerHTML = `<span class="font-medium">Option ${option.choice}</span><p class="text-xs text-gray-300 mt-1">${option.text}</p>`;
+                button.onclick = () => sendActionToAI(option.text);
+                optionsContainer.appendChild(button);
+            });
+        }
+    }
+
+   function updatePatientListUI() {
+    patientListContainer.innerHTML = '';
+    Object.keys(patients).forEach(patientId => {
+        const patient = patients[patientId];
+        const li = document.createElement('li');
+        // Added flex classes to the li element
+        li.className = `patient-item rounded-md p-3 mb-2 transition-colors flex justify-between items-center ${patientId === activePatientId ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`;
+        li.dataset.patientId = patientId;
+
+        // Container for the clickable patient info
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'cursor-pointer flex-grow';
+        infoDiv.innerHTML = `<div class="font-medium flex justify-between items-center">${patient.name}<span id="timer-${patientId}" class="text-xs font-mono text-blue-300 ml-2"></span></div><div class="text-xs text-gray-400 mt-1">Age: ${patient.age}</div>`;
+        infoDiv.onclick = () => switchPatient(patientId);
+
+        // The new delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'ml-4 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0';
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteBtn.setAttribute('title', 'Discharge Patient');
+        deleteBtn.onclick = (event) => {
+            event.stopPropagation(); // Prevents switching to the patient when deleting
+            
+            if (confirm(`Are you sure you want to discharge patient: ${patient.name}? This cannot be undone.`)) {
+                // If we are deleting the currently active patient, clear the main screen
+                if (activePatientId === patientId) {
+                    activePatientId = null;
+                    scenarioTextElement.innerHTML = '<p class="text-gray-300">Select a patient or admit a new one.</p>';
+                    optionsContainer.innerHTML = '';
+                    document.getElementById('vital-hr').innerText = '--';
+                    document.getElementById('vital-bp').innerText = '--/--';
+                    document.getElementById('vital-o2').innerText = '--%';
+                    document.getElementById('vital-con').innerText = '--';
+                }
+
+                delete patients[patientId];
+                updatePatientListUI(); // Re-render the list to show the removal
+                saveGameState();
+            }
+        };
+
+        li.appendChild(infoDiv);
+        li.appendChild(deleteBtn);
+        patientListContainer.appendChild(li);
+    });
+}
+
+    function updateStatsUI() {
+        // This function does not need changes
+        savedStatElement.innerText = `Saved: ${stats.saved}`;
+        diedStatElement.innerText = `Died: ${stats.died}`;
+    }
+
+    function switchPatient(patientId) {
+    const patient = patients[patientId];
+    if (patient.isWaiting) {
+        alert("This patient is currently waiting for results and cannot be accessed.");
+        return;
+    }
+    activePatientId = patientId;
+    
+    if (patient.resultsReady) {
+        patient.resultsReady = false; // Reset the flag
+        sendActionToAI("The results for my patient are ready. What do they show?");
+    } else {
+        const patientHistory = patient.history;
+        const lastModelMessage = patientHistory.slice().reverse().find(msg => msg.role === 'model');
+        if (lastModelMessage) {
+            updateUI(JSON.parse(lastModelMessage.parts[0].text));
+        }
+    }
+    
+    updatePatientListUI();
+    saveGameState();
+    timerContainer.classList.add('hidden');
+}
+    
+    function handleScenarioOutcome(scenarioData) {
+        // This function does not need changes
+        if (scenarioData.status === 'stabilized' || scenarioData.status === 'deceased') {
+            if (scenarioData.status === 'stabilized') stats.saved++;
+            if (scenarioData.status === 'deceased') stats.died++;
+            
+            delete patients[activePatientId];
+            activePatientId = null;
+            updateStatsUI();
+            updatePatientListUI();
+        }
+    }
+
+    async function sendActionToAI(actionText) {
+        // REVERTED to Gemini format
+        if (!activePatientId) {
+            alert("Please select a patient or admit a new one first.");
+            return;
+        }
+        scenarioTextElement.innerHTML = `<p class="text-center text-blue-400">Processing...</p>`;
+        optionsContainer.innerHTML = '';
+        
+        patients[activePatientId].history.push({ "role": "user", "parts": [{ "text": actionText }] });
+        
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    "systemInstruction": {
+                        "parts": [{ "text": MASTER_PROMPT }]
+                    },
+                    "contents": patients[activePatientId].history
+                })
+            });
+
+            if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
+            const data = await response.json();
+
+            if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
+                console.error("Invalid API Response Structure:", data);
+                throw new Error("API returned an invalid or empty response.");
+            }
+            const rawText = data.candidates[0].content.parts[0].text;
+            console.log("Raw AI Response:", rawText);
+
+            const startIndex = rawText.indexOf('{');
+            const endIndex = rawText.lastIndexOf('}');
+            if (startIndex === -1 || endIndex === -1) {
+                throw new Error("Valid JSON object not found in the AI's response.");
+            }
+            const jsonText = rawText.substring(startIndex, endIndex + 1);
+            const scenarioData = JSON.parse(jsonText);
+
+            patients[activePatientId].history.push({ "role": "model", "parts": [{ "text": jsonText }] });
+            
+            updateUI(scenarioData);
+            handleScenarioOutcome(scenarioData);
+            handleWaitTimer(scenarioData);
+            saveGameState();
+        } catch (error) {
+            console.error('Error sending action to AI:', error);
+            scenarioTextElement.innerHTML = `<p class="text-center text-red-500">Error: Could not process the AI's response. Please check the console.</p>`;
+        }
+    }
+
+    async function startNewSimulation() {
+    if (Object.keys(patients).length >= 10) {
+        alert("You cannot handle more than 10 active patients.");
+        return;
+    }
+    const newPatientId = `patient-${Date.now()}`;
+    activePatientId = newPatientId;
+    
+    const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
+    const feedback = document.querySelector('input[name="feedback"]:checked').value;
+    const firstNames = ["James", "Mary", "Robert", "Patricia", "John", "Jennifer"];
+    const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia"];
+    const complaints = ["severe chest pain", "shortness of breath and dizziness", "an episode of syncope", "palpitations"];
+    
+    const randomFirstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+    const randomLastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+    const randomAge = Math.floor(Math.random() * 50) + 30;
+    const randomComplaint = complaints[Math.floor(Math.random() * complaints.length)];
+    
+    patients[newPatientId] = {
+        name: `${randomFirstName} ${randomLastName}`,
+        age: randomAge,
+        history: [],
+        isWaiting: false,
+        waitTimeEnd: null,
+        resultsReady: false // NEW: Flag for ready results
+    };
+
+    updatePatientListUI();
+    const initialPrompt = `Start a new simulation. The patient is ${patients[newPatientId].name}, a ${randomAge}-year-old. Initial complaint is ${randomComplaint}. The simulation parameters are: { "difficulty": "${difficulty}", "feedback_verbosity": "${feedback}" }.`;
+    
+    await sendActionToAI(initialPrompt);
+}
+    
+    // =================================================================
+    // LOCAL STORAGE & INITIALIZATION
+    // =================================================================
+
+    function saveGameState() {
+        // This function does not need changes
+        const gameState = { patients: patients, stats: stats, activePatientId: activePatientId };
+        localStorage.setItem('cardioSimState', JSON.stringify(gameState));
+    }
+
+    function loadGameState() {
+    const savedState = localStorage.getItem('cardioSimState');
+    if (savedState) {
+        const gameState = JSON.parse(savedState);
+        patients = gameState.patients || {};
+        stats = gameState.stats || { saved: 0, died: 0 };
+        activePatientId = gameState.activePatientId;
+        updatePatientListUI();
+        updateStatsUI();
+        
+        let hasActiveTimers = Object.values(patients).some(p => p.isWaiting && p.waitTimeEnd > Date.now());
+        if (hasActiveTimers && !countdownInterval) {
+            countdownInterval = setInterval(updateAllTimers, 1000);
+        }
+        
+        if (activePatientId && patients[activePatientId]) {
+            const patientHistory = patients[activePatientId].history;
+            const lastModelMessage = patientHistory.slice().reverse().find(msg => msg.role === 'model');
+            if (lastModelMessage) {
+                updateUI(JSON.parse(lastModelMessage.parts[0].text));
+            }
+        }
+    }
+}
+    
+    // --- Initial page load ---
+    window.onload = () => {
+    requestNotificationPermission(); // Ask for permission on load
+    loadGameState();
+    
+    admitPatientBtn.addEventListener('click', startNewSimulation);
+    submitButton.addEventListener('click', () => {
+        const actionText = customInputField.value;
+        if (actionText.trim() === '') return;
+        sendActionToAI(actionText);
+        customInputField.value = '';
+    });
+        
+        const sidebar = document.getElementById('sidebar');
+        const settingsModal = document.getElementById('settings-modal');
+        document.getElementById('sidebar-toggle').addEventListener('click', () => {
+            sidebar.classList.toggle('-translate-x-full');
+        });
+        const closeModal = () => {
+            settingsModal.classList.add('hidden');
+            settingsModal.classList.remove('flex');
+        };
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            settingsModal.classList.remove('hidden');
+            settingsModal.classList.add('flex');
+        });
+        document.getElementById('close-settings').addEventListener('click', closeModal);
+        document.getElementById('save-settings').addEventListener('click', () => closeModal());
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) closeModal();
+        });
+    };
+</script>
+</body>
+</html>
