@@ -114,12 +114,10 @@
         
         <main id="main-content" class="flex-1 custom-scrollbar overflow-y-auto pb-20 md:ml-64"> <div class="p-6">
                 <div class="max-w-5xl mx-auto">
-                    <div id="image-container" class="aspect-16-9 bg-gray-700 rounded-lg border border-gray-600 flex items-center justify-center mb-6">
-                        <div class="text-center p-4">
-                            <i class="fas fa-image text-4xl text-gray-500 mb-2"></i>
-                            <p class="text-gray-400">Scenario Image will be displayed here.</p>
-                        </div>
-                    </div>
+                   <div id="report-container" class="bg-gray-700 rounded-lg border border-gray-600 p-6 mb-6">
+                <h3 class="text-lg font-semibold text-blue-300 border-b border-gray-600 pb-2 mb-3">Reports & Findings</h3>
+                <p class="text-gray-400">Clinical reports will be displayed here.</p>
+            </div>
                     
                     <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
                            <div id="vitals-monitor" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 border-b border-gray-700 pb-4 text-center md:text-left">
@@ -235,7 +233,7 @@
     // =================================================================
     // CONFIGURATION & STATE MANAGEMENT (FOR GOOGLE GEMINI API)
     // =================================================================
-    const API_KEY = 'AIzaSyCXdgmb1NOxBQkcFN3tM9kSel3C1feRVdo'; // PASTE YOUR SECRET GEMINI KEY HERE
+    const API_KEY = 'AIzaSyAuoL2QuEbQvwNsTp88u84DmigJ9SAqE24'; // PASTE YOUR SECRET GEMINI KEY HERE
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
     
     let activePatientId = null;
@@ -244,26 +242,37 @@
     let countdownInterval = null;
 
     const MASTER_PROMPT = `
-    **ROLE & GOAL:**
-    You are Simu-MD, an expert AI medical simulation engine. Your ONLY function is to generate JSON data for the CardioSim application. You must strictly adhere to the provided JSON structure.
-    **RESPONSE FORMAT (CRITICAL & ABSOLUTE):**
-    Your entire response MUST be a single, raw JSON object without ANY other text. The response must begin with '{' and end with '}'. This is the most important rule.
-    **MANDATORY JSON STRUCTURE & EXAMPLE:**
-    { "scenario_text": "A description of the situation.", "patient_vitals": { "heart_rate": "Value", "blood_pressure": "Value", "oxygen_saturation": "Value", "consciousness": "Value" }, "image_prompt": "A text description for an image AI.", "options": [ { "choice": "A", "text": "Actionable choice A." }, { "choice": "B", "text": "Actionable choice B." } ], "allow_custom_input": true, "feedback_text": "Analysis of the player's previous action.", "wait_time_minutes": 0, "status": "ongoing" }
-    **GAMEPLAY RULES:**
-    1. Time Delays: For actions that require waiting, set 'wait_time_minutes' to a value greater than 0.
-    2. Dynamic Patients: Patient emotional state and compliance can change based on the player's actions.
-    3. Open-Ended Challenges: Sometimes, return an empty 'options' array.
-    4. Outcomes: When a scenario ends, set 'status' to "stabilized" or "deceased".
-    **FINAL INSTRUCTION:**
-    Generate the next step of the simulation inside a single, valid JSON object and nothing else.
-    `;
+ROLE: You are Simu-MD, an expert AI medical simulation engine for the CardioSim application.
+
+PRIMARY DIRECTIVE: Your ONLY function is to generate a single, raw JSON object. Your entire response MUST start with '{' and end with '}' and contain nothing else. Do not use markdown. Do not add explanations.
+
+SCENARIO MIX: Generate scenarios with this approximate distribution: 60% Cardiovascular Technology (CVT), 30% Emergency Medicine, 10% General Cases. Occasionally include unexpected events and patient compliance issues.
+
+JSON STRUCTURE:
+{
+  "scenario_text": "string",
+  "patient_vitals": { "heart_rate": "string", "blood_pressure": "string", "oxygen_saturation": "string", "consciousness": "string" },
+  "report_title": "string (Provide only when clinically relevant, e.g., 'ECG Findings', 'Lab Results')",
+  "report_findings": ["string", "string", ...],
+  "options": [ { "choice": "string", "text": "string" } ],
+  "feedback_text": "string",
+  "wait_time_minutes": 0,
+  "status": "ongoing"
+}
+
+GAMEPLAY RULES:
+1. REPORTS: When clinically relevant, provide data in the 'report_title' and 'report_findings' fields.
+2. TIME DELAYS: Set 'wait_time_minutes' to a value greater than 0 only when logically necessary. This value must NEVER exceed 30.
+3. OUTCOMES: When a case is resolved, set 'status' to "stabilized" or "deceased".
+
+FINAL INSTRUCTION: Generate the next simulation step as a single, valid JSON object and nothing else.
+`;
 
     // --- DOM Elements ---
     const admitPatientBtn = document.getElementById('admit-patient-btn');
     const scenarioTextElement = document.getElementById('scenario-text');
     const optionsContainer = document.getElementById('options-container');
-    const imageContainer = document.getElementById('image-container');
+   const reportContainer = document.getElementById('report-container');
     const customInputField = document.getElementById('custom-input');
     const submitButton = document.getElementById('submit-button');
     const patientListContainer = document.getElementById('patient-list-container');
@@ -364,27 +373,35 @@ function showNotification(patientName) {
 }
 
     function updateUI(scenarioData) {
-        // This function does not need changes
-        if (!scenarioData) return;
-        if (scenarioData.patient_vitals) {
-            document.getElementById('vital-hr').innerText = scenarioData.patient_vitals.heart_rate || '--';
-            document.getElementById('vital-bp').innerText = scenarioData.patient_vitals.blood_pressure || '--/--';
-            document.getElementById('vital-o2').innerText = scenarioData.patient_vitals.oxygen_saturation || '--%';
-            document.getElementById('vital-con').innerText = scenarioData.patient_vitals.consciousness || '--';
-        }
-        scenarioTextElement.innerHTML = `<p>${scenarioData.scenario_text}</p><p class="text-sm text-blue-300 italic mt-4">${scenarioData.feedback_text}</p>`;
-        imageContainer.innerHTML = `<div class="text-center p-4"><i class="fas fa-image text-4xl text-gray-500 mb-2"></i><p class="text-gray-400 italic">${scenarioData.image_prompt}</p></div>`;
-        optionsContainer.innerHTML = '';
-        if (scenarioData.options && scenarioData.options.length > 0) {
-            scenarioData.options.forEach(option => {
-                const button = document.createElement('button');
-                button.className = 'option-btn bg-gray-700 hover:bg-blue-600 text-white py-3 px-4 rounded-md transition-colors text-left';
-                button.innerHTML = `<span class="font-medium">Option ${option.choice}</span><p class="text-xs text-gray-300 mt-1">${option.text}</p>`;
-                button.onclick = () => sendActionToAI(option.text);
-                optionsContainer.appendChild(button);
-            });
-        }
+    if (!scenarioData) return;
+
+    if (scenarioData.patient_vitals) {
+        document.getElementById('vital-hr').innerText = scenarioData.patient_vitals.heart_rate || '--';
+        document.getElementById('vital-bp').innerText = scenarioData.patient_vitals.blood_pressure || '--/--';
+        document.getElementById('vital-o2').innerText = scenarioData.patient_vitals.oxygen_saturation || '--%';
+        document.getElementById('vital-con').innerText = scenarioData.patient_vitals.consciousness || '--';
     }
+
+    scenarioTextElement.innerHTML = `<p>${scenarioData.scenario_text || ''}</p><p class="text-sm text-blue-300 italic mt-4">${scenarioData.feedback_text || ''}</p>`;
+    
+    if (scenarioData.report_title && scenarioData.report_findings) {
+        let findingsHTML = scenarioData.report_findings.map(finding => `<li class="text-gray-300">${finding}</li>`).join('');
+        reportContainer.innerHTML = `<h3 class="text-lg font-semibold text-blue-300 border-b border-gray-600 pb-2 mb-3">${scenarioData.report_title}</h3><ul class="list-disc list-inside space-y-1">${findingsHTML}</ul>`;
+    } else {
+        reportContainer.innerHTML = `<h3 class="text-lg font-semibold text-blue-300 border-b border-gray-600 pb-2 mb-3">Reports & Findings</h3><p class="text-gray-400">No specific reports at this time.</p>`;
+    }
+    
+    optionsContainer.innerHTML = '';
+    if (scenarioData.options && scenarioData.options.length > 0) {
+        scenarioData.options.forEach(option => {
+            const button = document.createElement('button');
+            button.className = 'option-btn bg-gray-700 hover:bg-blue-600 text-white py-3 px-4 rounded-md text-left';
+            button.innerHTML = `<span class="font-medium">Option ${option.choice}</span><p class="text-xs text-gray-300 mt-1">${option.text}</p>`;
+            button.onclick = () => sendActionToAI(option.text);
+            optionsContainer.appendChild(button);
+        });
+    }
+}
 
    function updatePatientListUI() {
     patientListContainer.innerHTML = '';
