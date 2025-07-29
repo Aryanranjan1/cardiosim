@@ -114,10 +114,12 @@
         
         <main id="main-content" class="flex-1 custom-scrollbar overflow-y-auto pb-20 md:ml-64"> <div class="p-6">
                 <div class="max-w-5xl mx-auto">
-                   <div id="report-container" class="bg-gray-700 rounded-lg border border-gray-600 p-4 mb-6 min-h-[200px]">
-    <h3 class="text-lg font-semibold text-blue-300 border-b border-gray-600 pb-2 mb-3">Reports & Findings</h3>
-    <p class="text-gray-400">Clinical reports and findings will be displayed here.</p>
-</div>
+                    <div id="image-container" class="aspect-16-9 bg-gray-700 rounded-lg border border-gray-600 flex items-center justify-center mb-6">
+                        <div class="text-center p-4">
+                            <i class="fas fa-image text-4xl text-gray-500 mb-2"></i>
+                            <p class="text-gray-400">Scenario Image will be displayed here.</p>
+                        </div>
+                    </div>
                     
                     <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
                            <div id="vitals-monitor" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 border-b border-gray-700 pb-4 text-center md:text-left">
@@ -231,75 +233,37 @@
 
  <script>
     // =================================================================
-    // CONFIGURATION & STATE MANAGEMENT
+    // CONFIGURATION & STATE MANAGEMENT (FOR GOOGLE GEMINI API)
     // =================================================================
-    const OPENROUTER_API_KEY = 'ssk-or-v1-9184f54dc7a99dac221ee443f8b1d050c9361fd708a45660d18547e361d1b7b8';
-    const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-    const MODEL_NAME = 'mistralai/mistral-small-3.1-24b-instruct';
-
+    const API_KEY = 'AIzaSyCXdgmb1NOxBQkcFN3tM9kSel3C1feRVdo'; // PASTE YOUR SECRET GEMINI KEY HERE
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
+    
     let activePatientId = null;
     let patients = {};
     let stats = { saved: 0, died: 0 };
     let countdownInterval = null;
 
     const MASTER_PROMPT = `
-**ROLE & GOAL:**
-You are Cardio-Tech Sim, an expert AI simulation engine designed to generate realistic clinical scenarios for medical professionals. Your function is to generate diverse and engaging scenarios, including relevant clinical data and reports, while strictly adhering to the provided JSON structure.
-
-**CONTEXT & SCOPE OF PRACTICE:**
-The user's role will change depending on the scenario (e.g., CVT, ER Tech). The simulation should test a range of clinical skills.
-
-**SCENARIO DISTRIBUTION & TONE:**
-Vary the scenarios according to this approximate mix:
-- 60% Cardiovascular Technology (CVT)
-- 30% Emergency Medicine
-- 10% General Cases
-
-To make the game more fun, occasionally include unexpected events, human elements, and variable pacing.
-
-**RESPONSE FORMAT (CRITICAL & ABSOLUTE):**
-Your entire response MUST be a single, raw JSON object without ANY other text. The response must begin with '{' and end with '}'. This is the most important rule.
-
-**MANDATORY JSON STRUCTURE & CVT EXAMPLE:**
-{
-    "scenario_text": "A 68-year-old male arrives in the cath lab for a scheduled coronary angiogram. The cardiologist asks you to run a preliminary 12-lead ECG.",
-    "patient_vitals": {
-        "heart_rate": "72",
-        "blood_pressure": "130/78",
-        "oxygen_saturation": "98%",
-        "consciousness": "Alert"
-    },
-    "report_title": "12-Lead ECG Findings",
-    "report_findings": [
-        "Rhythm: Normal Sinus Rhythm",
-        "Axis: Normal",
-        "Intervals: PR, QRS, and QT are within normal limits",
-        "ST Segment: No significant ST elevation or depression noted"
-    ],
-    "options": [
-        { "choice": "A", "text": "Proceed with preparing the cath lab for the angiogram." },
-        { "choice": "B", "text": "Show the ECG to the cardiologist and confirm findings." }
-    ],
-    "allow_custom_input": true,
-    "feedback_text": "The preliminary ECG shows no acute abnormalities.",
-    "wait_time_minutes": 0,
-    "status": "ongoing"
-}
-
-**GAMEPLAY RULES:**
-1.  **Time Delays:** Set 'wait_time_minutes' to a value greater than 0 only when logically necessary. This should be uncommon (about 3 in 10 responses). The value must NEVER exceed 30.
-2.  **Reports & Findings:** When clinically relevant, provide data in the 'report_title' and 'report_findings' fields. This can include ECG interpretations, echo measurements, lab results, or physical exam findings.
-3.  **Outcomes:** When a scenario ends, set 'status' to "stabilized" or "deceased".
-
-**FINAL INSTRUCTION:**
-Generate the next step of the simulation inside a single, valid JSON object and nothing else.
-`;
+    **ROLE & GOAL:**
+    You are Simu-MD, an expert AI medical simulation engine. Your ONLY function is to generate JSON data for the CardioSim application. You must strictly adhere to the provided JSON structure.
+    **RESPONSE FORMAT (CRITICAL & ABSOLUTE):**
+    Your entire response MUST be a single, raw JSON object without ANY other text. The response must begin with '{' and end with '}'. This is the most important rule.
+    **MANDATORY JSON STRUCTURE & EXAMPLE:**
+    { "scenario_text": "A description of the situation.", "patient_vitals": { "heart_rate": "Value", "blood_pressure": "Value", "oxygen_saturation": "Value", "consciousness": "Value" }, "image_prompt": "A text description for an image AI.", "options": [ { "choice": "A", "text": "Actionable choice A." }, { "choice": "B", "text": "Actionable choice B." } ], "allow_custom_input": true, "feedback_text": "Analysis of the player's previous action.", "wait_time_minutes": 0, "status": "ongoing" }
+    **GAMEPLAY RULES:**
+    1. Time Delays: For actions that require waiting, set 'wait_time_minutes' to a value greater than 0.
+    2. Dynamic Patients: Patient emotional state and compliance can change based on the player's actions.
+    3. Open-Ended Challenges: Sometimes, return an empty 'options' array.
+    4. Outcomes: When a scenario ends, set 'status' to "stabilized" or "deceased".
+    **FINAL INSTRUCTION:**
+    Generate the next step of the simulation inside a single, valid JSON object and nothing else.
+    `;
 
     // --- DOM Elements ---
     const admitPatientBtn = document.getElementById('admit-patient-btn');
     const scenarioTextElement = document.getElementById('scenario-text');
     const optionsContainer = document.getElementById('options-container');
-    const reportContainer = document.getElementById('report-container'); // Updated ID
+    const imageContainer = document.getElementById('image-container');
     const customInputField = document.getElementById('custom-input');
     const submitButton = document.getElementById('submit-button');
     const patientListContainer = document.getElementById('patient-list-container');
@@ -307,60 +271,109 @@ Generate the next step of the simulation inside a single, valid JSON object and 
     const diedStatElement = document.getElementById('stat-died');
     const timerContainer = document.getElementById('timer-container');
     const timerDisplay = document.getElementById('timer-display');
-    
-    // =================================================================
-    // PARSING & UI FUNCTIONS
-    // =================================================================
 
-    function parseAIResponse(rawText) {
-        if (!rawText) return null;
-        const match = rawText.match(/\{[\s\S]*\}/);
-        if (!match) {
-            console.error("AI response did not contain a JSON object.", rawText);
-            return null;
+    // =================================================================
+    // TIMER FUNCTIONS
+    // =================================================================
+    
+    // DELETE your old startTimer and handleWaitTimer functions, then ADD these:
+function updateAllTimers() {
+    let hasActiveTimers = false;
+    Object.keys(patients).forEach(patientId => {
+        const patient = patients[patientId];
+        if (patient.isWaiting) {
+            hasActiveTimers = true;
+            const timeLeftMs = patient.waitTimeEnd - Date.now();
+            
+            if (timeLeftMs > 0) {
+                const timeLeftSec = Math.round(timeLeftMs / 1000);
+                const min = Math.floor(timeLeftSec / 60);
+                const sec = timeLeftSec % 60;
+                const timeString = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+                
+                const sidebarTimerEl = document.getElementById(`timer-${patientId}`);
+                if (sidebarTimerEl) sidebarTimerEl.textContent = ` | ⏳ ${timeString}`;
+                if (patientId === activePatientId) {
+                    timerDisplay.textContent = timeString;
+                }
+            } else {
+                // Timer finished
+                patient.isWaiting = false;
+                patient.resultsReady = true; 
+                
+                const sidebarTimerEl = document.getElementById(`timer-${patientId}`);
+                if(sidebarTimerEl) sidebarTimerEl.textContent = ' | ✅ Results Ready';
+                
+                showNotification(patient.name); // Send notification
+
+                if (patientId === activePatientId) {
+                    timerContainer.classList.add('hidden');
+                    sendActionToAI("The waiting period is over. What are the results?");
+                }
+            }
         }
-        let jsonText = match[0];
-        jsonText = jsonText.replace(/(\r\n|\n|\r)/gm, " ");
-        try {
-            return JSON.parse(jsonText);
-        } catch (error) {
-            console.error("Failed to parse JSON:", error, jsonText);
-            return null;
-        }
+    });
+
+    if (!hasActiveTimers && countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
     }
+}
+
+function handleWaitTimer(scenarioData) {
+    if (scenarioData.wait_time_minutes && scenarioData.wait_time_minutes > 0) {
+        const patient = patients[activePatientId];
+        patient.isWaiting = true;
+        patient.waitTimeEnd = Date.now() + (scenarioData.wait_time_minutes * 60 * 1000);
+        
+        timerContainer.classList.remove('hidden');
+        customInputField.disabled = true;
+        submitButton.disabled = true;
+        optionsContainer.innerHTML = '<p class="text-gray-400 col-span-full text-center">Actions unavailable while waiting for results.</p>';
+
+        updatePatientListUI();
+
+        if (!countdownInterval) {
+            countdownInterval = setInterval(updateAllTimers, 1000);
+        }
+    } else {
+        customInputField.disabled = false;
+        submitButton.disabled = false;
+    }
+}
+
+    // =================================================================
+    // CORE FUNCTIONS
+    // =================================================================
+    
+// ADD THESE TWO NEW FUNCTIONS
+function requestNotificationPermission() {
+    if (!("Notification" in window)) {
+        console.log("This browser does not support desktop notification");
+    } else if (Notification.permission !== "denied") {
+        Notification.requestPermission();
+    }
+}
+
+function showNotification(patientName) {
+    if (Notification.permission === "granted" && document.hidden) { // Only notify if tab is not active
+        new Notification("CardioSim Alert", {
+            body: `Attention: Results for patient ${patientName} are now available.`
+        });
+    }
+}
 
     function updateUI(scenarioData) {
-        if (!scenarioData) {
-            scenarioTextElement.innerHTML = `<p class="text-center text-red-500">Error: Could not display scenario data.</p>`;
-            return;
-        }
-
-        // Update Vitals
+        // This function does not need changes
+        if (!scenarioData) return;
         if (scenarioData.patient_vitals) {
             document.getElementById('vital-hr').innerText = scenarioData.patient_vitals.heart_rate || '--';
             document.getElementById('vital-bp').innerText = scenarioData.patient_vitals.blood_pressure || '--/--';
             document.getElementById('vital-o2').innerText = scenarioData.patient_vitals.oxygen_saturation || '--%';
             document.getElementById('vital-con').innerText = scenarioData.patient_vitals.consciousness || '--';
         }
-
-        // Update Scenario Text
-        scenarioTextElement.innerHTML = `<p>${scenarioData.scenario_text || ''}</p><p class="text-sm text-blue-300 italic mt-4">${scenarioData.feedback_text || ''}</p>`;
-
-        // --- NEW: Update Report Section ---
-        if (scenarioData.report_title && scenarioData.report_findings) {
-            let findingsHTML = scenarioData.report_findings.map(finding => `<li class="text-gray-300">${finding}</li>`).join('');
-            reportContainer.innerHTML = `
-                <h3 class="text-lg font-semibold text-blue-300 border-b border-gray-600 pb-2 mb-3">${scenarioData.report_title}</h3>
-                <ul class="list-disc list-inside space-y-1">${findingsHTML}</ul>
-            `;
-        } else {
-            reportContainer.innerHTML = `
-                <h3 class="text-lg font-semibold text-blue-300 border-b border-gray-600 pb-2 mb-3">Reports & Findings</h3>
-                <p class="text-gray-400">No specific reports at this time.</p>
-            `;
-        }
-        
-        // Update Options
+        scenarioTextElement.innerHTML = `<p>${scenarioData.scenario_text}</p><p class="text-sm text-blue-300 italic mt-4">${scenarioData.feedback_text}</p>`;
+        imageContainer.innerHTML = `<div class="text-center p-4"><i class="fas fa-image text-4xl text-gray-500 mb-2"></i><p class="text-gray-400 italic">${scenarioData.image_prompt}</p></div>`;
         optionsContainer.innerHTML = '';
         if (scenarioData.options && scenarioData.options.length > 0) {
             scenarioData.options.forEach(option => {
@@ -373,122 +386,138 @@ Generate the next step of the simulation inside a single, valid JSON object and 
         }
     }
 
-    function updatePatientListUI() {
-        patientListContainer.innerHTML = '';
-        Object.keys(patients).forEach(patientId => {
-            const patient = patients[patientId];
-            const li = document.createElement('li');
-            li.className = `patient-item rounded-md p-3 mb-2 transition-colors flex justify-between items-center ${patientId === activePatientId ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`;
-            li.dataset.patientId = patientId;
-            const infoDiv = document.createElement('div');
-            infoDiv.className = 'cursor-pointer flex-grow';
-            infoDiv.innerHTML = `<div class="font-medium flex justify-between items-center">${patient.name}<span id="timer-${patientId}" class="text-xs font-mono text-blue-300 ml-2"></span></div><div class="text-xs text-gray-400 mt-1">Age: ${patient.age}</div>`;
-            infoDiv.onclick = () => switchPatient(patientId);
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'ml-4 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0';
-            deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-            deleteBtn.setAttribute('title', 'Discharge Patient');
-            deleteBtn.onclick = (event) => {
-                event.stopPropagation();
-                if (confirm(`Are you sure you want to discharge patient: ${patient.name}?`)) {
-                    if (activePatientId === patientId) {
-                        activePatientId = null;
-                        // Reset UI
-                        scenarioTextElement.innerHTML = '<p class="text-gray-300">Select or admit a patient.</p>';
-                        optionsContainer.innerHTML = '';
-                        reportContainer.innerHTML = '<h3 class="text-lg font-semibold text-blue-300 border-b border-gray-600 pb-2 mb-3">Reports & Findings</h3><p class="text-gray-400">Clinical reports will be displayed here.</p>';
-                        document.getElementById('vital-hr').innerText = '--';
-                        document.getElementById('vital-bp').innerText = '--/--';
-                        document.getElementById('vital-o2').innerText = '--%';
-                        document.getElementById('vital-con').innerText = '--';
-                    }
-                    delete patients[patientId];
-                    updatePatientListUI();
-                    saveGameState();
+   function updatePatientListUI() {
+    patientListContainer.innerHTML = '';
+    Object.keys(patients).forEach(patientId => {
+        const patient = patients[patientId];
+        const li = document.createElement('li');
+        // Added flex classes to the li element
+        li.className = `patient-item rounded-md p-3 mb-2 transition-colors flex justify-between items-center ${patientId === activePatientId ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`;
+        li.dataset.patientId = patientId;
+
+        // Container for the clickable patient info
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'cursor-pointer flex-grow';
+        infoDiv.innerHTML = `<div class="font-medium flex justify-between items-center">${patient.name}<span id="timer-${patientId}" class="text-xs font-mono text-blue-300 ml-2"></span></div><div class="text-xs text-gray-400 mt-1">Age: ${patient.age}</div>`;
+        infoDiv.onclick = () => switchPatient(patientId);
+
+        // The new delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'ml-4 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0';
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteBtn.setAttribute('title', 'Discharge Patient');
+        deleteBtn.onclick = (event) => {
+            event.stopPropagation(); // Prevents switching to the patient when deleting
+            
+            if (confirm(`Are you sure you want to discharge patient: ${patient.name}? This cannot be undone.`)) {
+                // If we are deleting the currently active patient, clear the main screen
+                if (activePatientId === patientId) {
+                    activePatientId = null;
+                    scenarioTextElement.innerHTML = '<p class="text-gray-300">Select a patient or admit a new one.</p>';
+                    optionsContainer.innerHTML = '';
+                    document.getElementById('vital-hr').innerText = '--';
+                    document.getElementById('vital-bp').innerText = '--/--';
+                    document.getElementById('vital-o2').innerText = '--%';
+                    document.getElementById('vital-con').innerText = '--';
                 }
-            };
-            li.appendChild(infoDiv);
-            li.appendChild(deleteBtn);
-            patientListContainer.appendChild(li);
-        });
-    }
+
+                delete patients[patientId];
+                updatePatientListUI(); // Re-render the list to show the removal
+                saveGameState();
+            }
+        };
+
+        li.appendChild(infoDiv);
+        li.appendChild(deleteBtn);
+        patientListContainer.appendChild(li);
+    });
+}
 
     function updateStatsUI() {
-        savedStatElement.innerHTML = `<i class="fas fa-heart"></i> Saved: ${stats.saved}`;
-        diedStatElement.innerHTML = `<i class="fas fa-skull-crossbones"></i> Died: ${stats.died}`;
+        // This function does not need changes
+        savedStatElement.innerText = `Saved: ${stats.saved}`;
+        diedStatElement.innerText = `Died: ${stats.died}`;
     }
 
-    // =================================================================
-    // CORE LOGIC & GAME STATE
-    // =================================================================
-
+    function switchPatient(patientId) {
+    const patient = patients[patientId];
+    if (patient.isWaiting) {
+        alert("This patient is currently waiting for results and cannot be accessed.");
+        return;
+    }
+    activePatientId = patientId;
+    
+    if (patient.resultsReady) {
+        patient.resultsReady = false; // Reset the flag
+        sendActionToAI("The results for my patient are ready. What do they show?");
+    } else {
+        const patientHistory = patient.history;
+        const lastModelMessage = patientHistory.slice().reverse().find(msg => msg.role === 'model');
+        if (lastModelMessage) {
+            updateUI(JSON.parse(lastModelMessage.parts[0].text));
+        }
+    }
+    
+    updatePatientListUI();
+    saveGameState();
+    timerContainer.classList.add('hidden');
+}
+    
     function handleScenarioOutcome(scenarioData) {
-        if (!scenarioData) return;
+        // This function does not need changes
         if (scenarioData.status === 'stabilized' || scenarioData.status === 'deceased') {
             if (scenarioData.status === 'stabilized') stats.saved++;
             if (scenarioData.status === 'deceased') stats.died++;
+            
             delete patients[activePatientId];
             activePatientId = null;
             updateStatsUI();
             updatePatientListUI();
-            saveGameState();
         }
-    }
-
-    function switchPatient(patientId) {
-        const patient = patients[patientId];
-        if (!patient) return;
-        if (patient.isWaiting) {
-            alert("This patient is currently waiting for results.");
-            return;
-        }
-        activePatientId = patientId;
-        if (patient.resultsReady) {
-            patient.resultsReady = false;
-            sendActionToAI("The results for my patient are ready. What do they show?");
-        } else {
-            const lastModelMessage = patient.history?.slice().reverse().find(msg => msg.role === 'model');
-            if (lastModelMessage) {
-                const scenarioData = parseAIResponse(lastModelMessage.parts[0].text);
-                updateUI(scenarioData);
-            }
-        }
-        updatePatientListUI();
-        saveGameState();
-        timerContainer.classList.add('hidden');
     }
 
     async function sendActionToAI(actionText) {
+        // REVERTED to Gemini format
         if (!activePatientId) {
-            alert("Please select a patient first.");
+            alert("Please select a patient or admit a new one first.");
             return;
         }
         scenarioTextElement.innerHTML = `<p class="text-center text-blue-400">Processing...</p>`;
         optionsContainer.innerHTML = '';
+        
         patients[activePatientId].history.push({ "role": "user", "parts": [{ "text": actionText }] });
-        const messages = patients[activePatientId].history.map(msg => ({
-            role: msg.role === 'model' ? 'assistant' : 'user',
-            content: msg.parts[0].text
-        }));
-
+        
         try {
             const response = await fetch(API_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENROUTER_API_KEY}` },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    "model": MODEL_NAME,
-                    "messages": [{ "role": "system", "content": MASTER_PROMPT }, ...messages]
+                    "systemInstruction": {
+                        "parts": [{ "text": MASTER_PROMPT }]
+                    },
+                    "contents": patients[activePatientId].history
                 })
             });
+
             if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
-
             const data = await response.json();
-            const rawText = data.choices[0].message.content;
 
-            const scenarioData = parseAIResponse(rawText);
-            if (!scenarioData) throw new Error("AI returned invalid or unparsable JSON.");
+            if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
+                console.error("Invalid API Response Structure:", data);
+                throw new Error("API returned an invalid or empty response.");
+            }
+            const rawText = data.candidates[0].content.parts[0].text;
+            console.log("Raw AI Response:", rawText);
 
-            patients[activePatientId].history.push({ "role": "model", "parts": [{ "text": rawText }] });
+            const startIndex = rawText.indexOf('{');
+            const endIndex = rawText.lastIndexOf('}');
+            if (startIndex === -1 || endIndex === -1) {
+                throw new Error("Valid JSON object not found in the AI's response.");
+            }
+            const jsonText = rawText.substring(startIndex, endIndex + 1);
+            const scenarioData = JSON.parse(jsonText);
+
+            patients[activePatientId].history.push({ "role": "model", "parts": [{ "text": jsonText }] });
             
             updateUI(scenarioData);
             handleScenarioOutcome(scenarioData);
@@ -496,137 +525,97 @@ Generate the next step of the simulation inside a single, valid JSON object and 
             saveGameState();
         } catch (error) {
             console.error('Error sending action to AI:', error);
-            scenarioTextElement.innerHTML = `<p class="text-center text-red-500">Error: Could not process AI response. ${error.message}</p>`;
+            scenarioTextElement.innerHTML = `<p class="text-center text-red-500">Error: Could not process the AI's response. Please check the console.</p>`;
         }
     }
 
     async function startNewSimulation() {
-        if (Object.keys(patients).length >= 10) {
-            alert("Cannot handle more than 10 active patients.");
-            return;
-        }
-        const newPatientId = `patient-${Date.now()}`;
-        activePatientId = newPatientId;
-        const firstNames = ["James", "Mary", "Robert", "Patricia", "John", "Jennifer"];
-        const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia"];
-        const randomFirstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-        const randomLastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-        const randomAge = Math.floor(Math.random() * 50) + 30;
-        patients[newPatientId] = {
-            name: `${randomFirstName} ${randomLastName}`,
-            age: randomAge, history: [], isWaiting: false, waitTimeEnd: null, resultsReady: false
-        };
-        updatePatientListUI();
-        const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
-        const initialPrompt = `Start a new simulation. The patient is ${randomAge}-year-old ${patients[newPatientId].name}. Difficulty is ${difficulty}.`;
-        await sendActionToAI(initialPrompt);
+    if (Object.keys(patients).length >= 10) {
+        alert("You cannot handle more than 10 active patients.");
+        return;
     }
-
-    // =================================================================
-    // TIMERS, NOTIFICATIONS, LOCAL STORAGE, EVENT LISTENERS
-    // =================================================================
-
-    function updateAllTimers() {
-        let hasActiveTimers = false;
-        Object.keys(patients).forEach(patientId => {
-            const patient = patients[patientId];
-            if (patient.isWaiting) {
-                hasActiveTimers = true;
-                const timeLeftMs = patient.waitTimeEnd - Date.now();
-                if (timeLeftMs > 0) {
-                    const min = Math.floor(timeLeftMs / 60000);
-                    const sec = Math.floor((timeLeftMs % 60000) / 1000);
-                    const timeString = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-                    const sidebarTimerEl = document.getElementById(`timer-${patientId}`);
-                    if (sidebarTimerEl) sidebarTimerEl.textContent = ` | ⏳ ${timeString}`;
-                    if (patientId === activePatientId) timerDisplay.textContent = timeString;
-                } else {
-                    patient.isWaiting = false;
-                    patient.resultsReady = true;
-                    const sidebarTimerEl = document.getElementById(`timer-${patientId}`);
-                    if (sidebarTimerEl) sidebarTimerEl.textContent = ' | ✅ Results Ready';
-                    showNotification(patient.name);
-                    if (patientId === activePatientId) {
-                        timerContainer.classList.add('hidden');
-                        sendActionToAI("The waiting period is over. What are the results?");
-                    }
-                }
-            }
-        });
-        if (!hasActiveTimers && countdownInterval) {
-            clearInterval(countdownInterval);
-            countdownInterval = null;
-        }
-    }
-
-    function handleWaitTimer(scenarioData) {
-        if (!scenarioData) return;
-        if (scenarioData.wait_time_minutes && scenarioData.wait_time_minutes > 0) {
-            const patient = patients[activePatientId];
-            patient.isWaiting = true;
-            patient.waitTimeEnd = Date.now() + (scenarioData.wait_time_minutes * 60 * 1000);
-            timerContainer.classList.remove('hidden');
-            customInputField.disabled = true;
-            submitButton.disabled = true;
-            optionsContainer.innerHTML = '<p class="text-gray-400 col-span-full text-center">Actions unavailable while waiting for results.</p>';
-            updatePatientListUI();
-            if (!countdownInterval) {
-                countdownInterval = setInterval(updateAllTimers, 1000);
-            }
-        } else {
-            customInputField.disabled = false;
-            submitButton.disabled = false;
-        }
-    }
+    const newPatientId = `patient-${Date.now()}`;
+    activePatientId = newPatientId;
     
+    const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
+    const feedback = document.querySelector('input[name="feedback"]:checked').value;
+    const firstNames = ["James", "Mary", "Robert", "Patricia", "John", "Jennifer"];
+    const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia"];
+    const complaints = ["severe chest pain", "shortness of breath and dizziness", "an episode of syncope", "palpitations"];
+    
+    const randomFirstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+    const randomLastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+    const randomAge = Math.floor(Math.random() * 50) + 30;
+    const randomComplaint = complaints[Math.floor(Math.random() * complaints.length)];
+    
+    patients[newPatientId] = {
+        name: `${randomFirstName} ${randomLastName}`,
+        age: randomAge,
+        history: [],
+        isWaiting: false,
+        waitTimeEnd: null,
+        resultsReady: false // NEW: Flag for ready results
+    };
+
+    updatePatientListUI();
+    const initialPrompt = `Start a new simulation. The patient is ${patients[newPatientId].name}, a ${randomAge}-year-old. Initial complaint is ${randomComplaint}. The simulation parameters are: { "difficulty": "${difficulty}", "feedback_verbosity": "${feedback}" }.`;
+    
+    await sendActionToAI(initialPrompt);
+}
+    
+    // =================================================================
+    // LOCAL STORAGE & INITIALIZATION
+    // =================================================================
+
     function saveGameState() {
-        localStorage.setItem('cardioSimState', JSON.stringify({ patients, stats, activePatientId }));
+        // This function does not need changes
+        const gameState = { patients: patients, stats: stats, activePatientId: activePatientId };
+        localStorage.setItem('cardioSimState', JSON.stringify(gameState));
     }
 
     function loadGameState() {
-        const savedState = localStorage.getItem('cardioSimState');
-        if (savedState) {
-            const gameState = JSON.parse(savedState);
-            patients = gameState.patients || {};
-            stats = gameState.stats || { saved: 0, died: 0 };
-            activePatientId = gameState.activePatientId;
-            updatePatientListUI();
-            updateStatsUI();
-            let hasActiveTimers = Object.values(patients).some(p => p.isWaiting && p.waitTimeEnd > Date.now());
-            if (hasActiveTimers && !countdownInterval) {
-                countdownInterval = setInterval(updateAllTimers, 1000);
+    const savedState = localStorage.getItem('cardioSimState');
+    if (savedState) {
+        const gameState = JSON.parse(savedState);
+        patients = gameState.patients || {};
+        stats = gameState.stats || { saved: 0, died: 0 };
+        activePatientId = gameState.activePatientId;
+        updatePatientListUI();
+        updateStatsUI();
+        
+        let hasActiveTimers = Object.values(patients).some(p => p.isWaiting && p.waitTimeEnd > Date.now());
+        if (hasActiveTimers && !countdownInterval) {
+            countdownInterval = setInterval(updateAllTimers, 1000);
+        }
+        
+        if (activePatientId && patients[activePatientId]) {
+            const patientHistory = patients[activePatientId].history;
+            const lastModelMessage = patientHistory.slice().reverse().find(msg => msg.role === 'model');
+            if (lastModelMessage) {
+                updateUI(JSON.parse(lastModelMessage.parts[0].text));
             }
-            if (activePatientId && patients[activePatientId]) {
-                switchPatient(activePatientId);
-            }
         }
     }
-
-    function requestNotificationPermission() {
-        if ("Notification" in window && Notification.permission !== "denied") {
-            Notification.requestPermission();
-        }
-    }
-
-    function showNotification(patientName) {
-        if (Notification.permission === "granted" && document.hidden) {
-            new Notification("CardioSim Alert", {
-                body: `Attention: Results for patient ${patientName} are now available.`
-            });
-        }
-    }
-
-    function setupEventListeners() {
-        admitPatientBtn.addEventListener('click', startNewSimulation);
-        submitButton.addEventListener('click', () => {
-            const actionText = customInputField.value;
-            if (actionText.trim() === '') return;
-            sendActionToAI(actionText);
-            customInputField.value = '';
-        });
+}
+    
+    // --- Initial page load ---
+    window.onload = () => {
+    requestNotificationPermission(); // Ask for permission on load
+    loadGameState();
+    
+    admitPatientBtn.addEventListener('click', startNewSimulation);
+    submitButton.addEventListener('click', () => {
+        const actionText = customInputField.value;
+        if (actionText.trim() === '') return;
+        sendActionToAI(actionText);
+        customInputField.value = '';
+    });
+        
         const sidebar = document.getElementById('sidebar');
         const settingsModal = document.getElementById('settings-modal');
-        document.getElementById('sidebar-toggle').addEventListener('click', () => sidebar.classList.toggle('-translate-x-full'));
+        document.getElementById('sidebar-toggle').addEventListener('click', () => {
+            sidebar.classList.toggle('-translate-x-full');
+        });
         const closeModal = () => {
             settingsModal.classList.add('hidden');
             settingsModal.classList.remove('flex');
@@ -636,16 +625,10 @@ Generate the next step of the simulation inside a single, valid JSON object and 
             settingsModal.classList.add('flex');
         });
         document.getElementById('close-settings').addEventListener('click', closeModal);
-        document.getElementById('save-settings').addEventListener('click', closeModal);
+        document.getElementById('save-settings').addEventListener('click', () => closeModal());
         settingsModal.addEventListener('click', (e) => {
             if (e.target === settingsModal) closeModal();
         });
-    }
-
-    window.onload = () => {
-        requestNotificationPermission();
-        loadGameState();
-        setupEventListeners();
     };
 </script>
 </body>
